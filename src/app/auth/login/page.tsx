@@ -3,11 +3,10 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useRouter } from 'next/router'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { authService } from '@/services/authService'
 import { useAuthStore } from '@/store/authStore'
-import { userAgentFromString } from 'next/server'
 
 
 const loginSchema = z.object ({
@@ -31,15 +30,16 @@ export default function LoginPage() {
     })
 
     const onSubmit = async (data: LoginForm) => {
-        try{
+        try {
             const { token } = await authService.login(data.email, data.password)
+            localStorage.setItem('token', token)
             const user = await authService.getMe()
             setAuth(user, token)
             router.push('/dashboard')
         } catch {
-            setError('root', { message: 'Invalid email or password '})
+            setError('root', { message: 'E-mail ou senha inválidos' })
         }
-    }
+}
 
     return (
         <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
