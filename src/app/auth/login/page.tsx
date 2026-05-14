@@ -33,6 +33,7 @@ export default function LoginPage() {
         try {
             const { token } = await authService.login(data.email, data.password)
             localStorage.setItem('token', token)
+            document.cookie = `token=${token}; path=/`
             const user = await authService.getMe()
             setAuth(user, token)
             router.push('/dashboard')

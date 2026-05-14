@@ -37,6 +37,7 @@ export default function RegisterPage (){
     try {
         const { token } = await authService.register(data.name, data.email, data.password)
         localStorage.setItem('token', token)
+        document.cookie = `token=${token}; path=/`
         const user = await authService.getMe()
         setAuth(user, token)
         router.push('/dashboard')
