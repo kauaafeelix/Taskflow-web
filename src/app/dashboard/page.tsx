@@ -4,19 +4,21 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { projectService } from '@/services/projectService'
 import { Project } from '@/types'
+import CreateProjectModal from '@/components/CreateProjectModal'
 
 export default function DashboardPage() {
   const router = useRouter()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
     const fetchProjects = async () => {
       try {
         const data = await projectService.list()
         setProjects(data.content)
-      } catch {
-        console.error('Failed to fetch projects')
+      } catch (error) {
+        console.error('Failed to fetch projects', error)
       } finally {
         setLoading(false)
       }
@@ -24,6 +26,10 @@ export default function DashboardPage() {
 
     fetchProjects()
   }, [])
+
+  const handleProjectCreated = (project: Project) => {
+    setProjects((prev) => [project, ...prev])
+  }
 
   if (loading) {
     return (
@@ -35,12 +41,22 @@ export default function DashboardPage() {
 
   return (
     <div>
+      {showModal && (
+        <CreateProjectModal
+          onClose={() => setShowModal(false)}
+          onCreated={handleProjectCreated}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white">Projetos</h1>
           <p className="text-[#888] text-sm mt-1">{projects.length} projeto(s) encontrado(s)</p>
         </div>
-        <button className="bg-white text-black text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#e0e0e0] transition">
+        <button
+          onClick={() => setShowModal(true)}
+          className="bg-white text-black text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#e0e0e0] transition"
+        >
           Novo projeto
         </button>
       </div>
