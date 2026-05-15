@@ -5,20 +5,23 @@ import { useRouter } from 'next/navigation'
 import { projectService } from '@/services/projectService'
 import { Project } from '@/types'
 import CreateProjectModal from '@/components/CreateProjectModal'
+import Toast from '@/components/Toast'
+import { useToast } from '@/hooks/useToast'
 
 export default function DashboardPage() {
   const router = useRouter()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const { toast, showToast, hideToast } = useToast()
 
   useEffect(() => {
     const fetchProjects = async () => {
       try {
         const data = await projectService.list()
         setProjects(data.content)
-      } catch (error) {
-        console.error('Failed to fetch projects', error)
+      } catch {
+        showToast('Erro ao carregar projetos', 'error')
       } finally {
         setLoading(false)
       }
@@ -29,6 +32,7 @@ export default function DashboardPage() {
 
   const handleProjectCreated = (project: Project) => {
     setProjects((prev) => [project, ...prev])
+    showToast('Projeto criado com sucesso!', 'success')
   }
 
   if (loading) {
@@ -41,6 +45,8 @@ export default function DashboardPage() {
 
   return (
     <div>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+
       {showModal && (
         <CreateProjectModal
           onClose={() => setShowModal(false)}
