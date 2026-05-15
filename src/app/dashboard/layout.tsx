@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuthStore } from '@/store/authStore'
+import { authService } from '@/services/authService'
 
 export default function DashboardLayout({
   children,
@@ -11,18 +12,40 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const { user, clearAuth } = useAuthStore()
+  const { user, clearAuth, setAuth } = useAuthStore()
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (!token) {
       router.push('/auth/login')
+      return
     }
-  }, [router])
+
+    authService.getMe()
+      .then((userData) => {
+        setAuth(userData, token)
+      })
+      .catch(() => {
+        clearAuth()
+        router.push('/auth/login')
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [])
 
   const handleLogout = () => {
     clearAuth()
     router.push('/auth/login')
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
+        <p className="text-[#888]">Carregando...</p>
+      </div>
+    )
   }
 
   return (
@@ -38,6 +61,12 @@ export default function DashboardLayout({
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-[#888] hover:text-white hover:bg-[#1a1a1a] transition text-sm"
           >
             Dashboard
+          </Link>
+          <Link
+            href="/dashboard/profile"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-[#888] hover:text-white hover:bg-[#1a1a1a] transition text-sm"
+          >
+            Perfil
           </Link>
         </nav>
 

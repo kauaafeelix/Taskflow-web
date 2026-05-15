@@ -6,6 +6,7 @@ interface AuthState {
   token: string | null
   setAuth: (user: User, token: string) => void
   clearAuth: () => void
+  hydrate: () => void
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -20,5 +21,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('token')
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
     set({ user: null, token: null })
+  },
+  hydrate: () => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      set({ token })
+    }
   },
 }))
