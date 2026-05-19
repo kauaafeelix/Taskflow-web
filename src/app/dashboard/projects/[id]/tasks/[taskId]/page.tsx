@@ -5,6 +5,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { taskService } from '@/services/taskService'
 import { Task } from '@/types'
 import { useAuthStore } from '@/store/authStore'
+import Toast from '@/components/Toast'
+import { useToast } from '@/hooks/useToast'
+import ConfirmDialog from '@/components/ConfirmDialog'
+
 
 const PRIORITY_COLORS: Record<string, string> = {
   HIGH: 'text-red-400 bg-red-500/10',
@@ -18,38 +22,19 @@ const PRIORITY_LABELS: Record<string, string> = {
   LOW: 'Baixa',
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  TODO: 'A fazer',
-  IN_PROGRESS: 'Em andamento',
-  IN_REVIEW: 'Em revisão',
-  DONE: 'Concluído',
-  CANCELLED: 'Cancelado',
-}
-
 export default function TaskDetailPage() {
-    const { id, taskId } = useParams<{ id: string; taskId: string }>()
-    const router = useRouter()
-    const { user } = useAuthStore()
-    const [task, setTask] = useState<Task | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [comment, setComment] = useState('')
-    const [submittingComment, setSubmittingComment] = useState(false)
-    const [assignEmail, setAssignEmail] = useState('')
-    const [assigning, setAssigning] = useState(false)
+  const { id, taskId } = useParams<{ id: string; taskId: string }>()
+  const router = useRouter()
+  const { user } = useAuthStore()
+  const [task, setTask] = useState<Task | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [comment, setComment] = useState('')
+  const [submittingComment, setSubmittingComment] = useState(false)
+  const [assignEmail, setAssignEmail] = useState('')
+  const [assigning, setAssigning] = useState(false)
+  const { toast, showToast, hideToast } = useToast()
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null)
 
-const handleAssign = async () => {
-  if (!assignEmail.trim()) return
-  setAssigning(true)
-  try {
-    const updated = await taskService.assign(taskId, assignEmail)
-    setTask(updated)
-    setAssignEmail('')
-  } catch {
-    console.error('Failed to assign task')
-  } finally {
-    setAssigning(false)
-  }
-}
 
   useEffect(() => {
     const fetchTask = async () => {
@@ -57,7 +42,7 @@ const handleAssign = async () => {
         const data = await taskService.getById(taskId)
         setTask(data)
       } catch {
-        console.error('Failed to fetch task')
+        showToast('Erro ao carregar task', 'error')
       } finally {
         setLoading(false)
       }
@@ -73,8 +58,9 @@ const handleAssign = async () => {
       const updated = await taskService.addComment(taskId, comment)
       setTask(updated)
       setComment('')
+      showToast('Comentário adicionado!', 'success')
     } catch {
-      console.error('Failed to add comment')
+      showToast('Erro ao adicionar comentário', 'error')
     } finally {
       setSubmittingComment(false)
     }
@@ -88,17 +74,51 @@ const handleAssign = async () => {
           ? { ...prev, comments: prev.comments.filter((c) => c.id !== commentId) }
           : prev
       )
+      showToast('Comentário removido!', 'success')
     } catch {
-      console.error('Failed to remove comment')
+      showToast('Erro ao remover comentário', 'error')
     }
   }
 
   const handleChangeStatus = async (status: string) => {
+  if (status === 'CANCELLED') {
+    setPendingStatus(status)
+    return
+  }
+  try {
+    const updated = await taskService.changeStatus(taskId, status)
+    setTask(updated)
+    showToast('Status atualizado!', 'success')
+  } catch {
+    showToast('Transição de status inválida', 'error')
+  }
+}
+
+const handleConfirmStatus = async () => {
+  if (!pendingStatus) return
+  try {
+    const updated = await taskService.changeStatus(taskId, pendingStatus)
+    setTask(updated)
+    showToast('Status atualizado!', 'success')
+  } catch {
+    showToast('Transição de status inválida', 'error')
+  } finally {
+    setPendingStatus(null)
+  }
+}
+
+  const handleAssign = async () => {
+    if (!assignEmail.trim()) return
+    setAssigning(true)
     try {
-      const updated = await taskService.changeStatus(taskId, status)
+      const updated = await taskService.assign(taskId, assignEmail)
       setTask(updated)
+      setAssignEmail('')
+      showToast('Task atribuída com sucesso!', 'success')
     } catch {
-      console.error('Failed to change status')
+      showToast('Erro ao atribuir task. Verifique o email.', 'error')
+    } finally {
+      setAssigning(false)
     }
   }
 
@@ -120,7 +140,16 @@ const handleAssign = async () => {
 
   return (
     <div className="max-w-3xl">
-      {/* Header */}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+
+      {pendingStatus === 'CANCELLED' && (
+        <ConfirmDialog
+          message="Tem certeza que deseja cancelar esta task? Essa ação não pode ser desfeita."
+          onConfirm={handleConfirmStatus}
+          onCancel={() => setPendingStatus(null)}
+        />
+      )}
+
       <button
         onClick={() => router.push(`/dashboard/projects/${id}`)}
         className="text-[#888] hover:text-white text-sm mb-6 flex items-center gap-1 transition"
@@ -135,14 +164,14 @@ const handleAssign = async () => {
           <p className="text-[#888] text-sm mb-6">{task.description}</p>
         )}
 
-        {/* Properties */}
-    <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-[#555] text-xs mb-1">Status</p>
             <select
               value={task.status}
               onChange={(e) => handleChangeStatus(e.target.value)}
-              className="bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-[#555] transition w-full"
+              disabled={task.status === 'CANCELLED' || task.status === 'DONE'}
+              className="bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-[#555] transition w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="TODO">A fazer</option>
               <option value="IN_PROGRESS">Em andamento</option>
@@ -151,7 +180,6 @@ const handleAssign = async () => {
               <option value="CANCELLED">Cancelado</option>
             </select>
           </div>
-
           <div>
             <p className="text-[#555] text-xs mb-1">Prioridade</p>
             <span className={`text-xs px-2 py-1 rounded-full font-medium ${PRIORITY_COLORS[task.priority]}`}>
@@ -165,27 +193,27 @@ const handleAssign = async () => {
           </div>
 
           <div>
-                <p className="text-[#555] text-xs mb-1">Responsável</p>
-                <p className="text-white text-sm mb-2">{task.assigneeEmail ?? '—'}</p>
-                <div className="flex gap-2">
-                    <input
-                    value={assignEmail}
-                    onChange={(e) => setAssignEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAssign()}
-                    placeholder="email@exemplo.com"
-                    className="flex-1 bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white placeholder-[#444] text-xs focus:outline-none focus:border-[#555] transition"
-                    />
-                    <button
-                    onClick={handleAssign}
-                    disabled={assigning || !assignEmail.trim()}
-                    className="bg-white text-black text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-[#e0e0e0] transition disabled:opacity-50"
-                    >
-                    {assigning ? '...' : 'Atribuir'}
-                    </button>
-                </div>
+            <p className="text-[#555] text-xs mb-1">Responsável</p>
+            <p className="text-white text-sm mb-2">{task.assigneeEmail ?? '—'}</p>
+            <div className="flex gap-2">
+              <input
+                value={assignEmail}
+                onChange={(e) => setAssignEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAssign()}
+                placeholder="email@exemplo.com"
+                className="flex-1 bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white placeholder-[#444] text-xs focus:outline-none focus:border-[#555] transition"
+              />
+              <button
+                onClick={handleAssign}
+                disabled={assigning || !assignEmail.trim()}
+                className="bg-white text-black text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-[#e0e0e0] transition disabled:opacity-50"
+              >
+                {assigning ? '...' : 'Atribuir'}
+              </button>
+            </div>
+          </div>
         </div>
-    </div>
-</div>
+      </div>
 
       {/* Comments */}
       <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-6">
@@ -225,7 +253,6 @@ const handleAssign = async () => {
           ))}
         </div>
 
-        {/* Add comment */}
         <div className="flex gap-3">
           <div className="w-7 h-7 rounded-full bg-[#2a2a2a] flex items-center justify-center text-xs text-white font-medium flex-shrink-0">
             {user?.name?.charAt(0).toUpperCase()}

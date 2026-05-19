@@ -6,7 +6,8 @@ import { projectService } from '@/services/projectService'
 import { taskService } from '@/services/taskService'
 import { ProjectDetail, Task } from '@/types'
 import CreateTaskModal from '@/components/CreateTaskModal'
-
+import Toast from '@/components/Toast'
+import { useToast } from '@/hooks/useToast'
 
 const STATUS_COLUMNS = [
   { key: 'TODO', label: 'A fazer' },
@@ -29,45 +30,17 @@ const PRIORITY_LABELS: Record<string, string> = {
 }
 
 export default function ProjectDetailPage() {
-    const { id } = useParams<{ id: string }>()
-    const router = useRouter()
-    const [project, setProject] = useState<ProjectDetail | null>(null)
-    const [tasks, setTasks] = useState<Task[]>([])
-    const [loading, setLoading] = useState(true)
-    const [showTaskModal, setShowTaskModal] = useState(false)
-    const [showMembersPanel, setShowMembersPanel] = useState(false)
-    const [memberEmail, setMemberEmail] = useState('')
-    const [addingMember, setAddingMember] = useState(false)
-    const [memberError, setMemberError] = useState('')
-
-const handleAddMember = async () => {
-  if (!memberEmail.trim()) return
-  setAddingMember(true)
-  setMemberError('')
-  try {
-    const updated = await projectService.addMember(id, memberEmail, 'MEMBER')
-    setProject(updated as unknown as ProjectDetail)
-    setMemberEmail('')
-  } catch {
-    setMemberError('Erro ao adicionar membro. Verifique o email.')
-  } finally {
-    setAddingMember(false)
-  }
-}
-
-const handleRemoveMember = async (email: string) => {
-  try {
-    await projectService.removeMember(id, email)
-    setProject((prev) =>
-      prev
-        ? { ...prev, members: prev.members.filter((m) => m.email !== email) }
-        : prev
-    )
-  } catch {
-    console.error('Failed to remove member')
-  }
-}
-
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+  const [project, setProject] = useState<ProjectDetail | null>(null)
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showTaskModal, setShowTaskModal] = useState(false)
+  const [showMembersPanel, setShowMembersPanel] = useState(false)
+  const [memberEmail, setMemberEmail] = useState('')
+  const [addingMember, setAddingMember] = useState(false)
+  const [memberError, setMemberError] = useState('')
+  const { toast, showToast, hideToast } = useToast()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -79,7 +52,7 @@ const handleRemoveMember = async (email: string) => {
         setProject(projectData)
         setTasks(tasksData.content)
       } catch {
-        console.error('Failed to fetch project')
+        showToast('Erro ao carregar projeto', 'error')
       } finally {
         setLoading(false)
       }
@@ -87,6 +60,61 @@ const handleRemoveMember = async (email: string) => {
 
     fetchData()
   }, [id])
+
+  const handleTaskCreated = (task: Task) => {
+    setTasks((prev) => [...prev, task])
+    showToast('Task criada com sucesso!', 'success')
+  }
+
+  const handleAddMember = async () => {
+    if (!memberEmail.trim()) return
+    setAddingMember(true)
+    setMemberError('')
+    try {
+      const updated = await projectService.addMember(id, memberEmail, 'MEMBER')
+      setProject(updated as unknown as ProjectDetail)
+      setMemberEmail('')
+      showToast('Membro adicionado com sucesso!', 'success')
+    } catch {
+      setMemberError('Erro ao adicionar membro. Verifique o email.')
+      showToast('Erro ao adicionar membro', 'error')
+    } finally {
+      setAddingMember(false)
+    }
+  }
+
+  const handleRemoveMember = async (email: string) => {
+    try {
+      await projectService.removeMember(id, email)
+      setProject((prev) =>
+        prev
+          ? { ...prev, members: prev.members.filter((m) => m.email !== email) }
+          : prev
+      )
+      showToast('Membro removido com sucesso!', 'success')
+    } catch {
+      showToast('Erro ao remover membro', 'error')
+    }
+  }
+
+  const handleArchive = async () => {
+  try {
+    const updated = await projectService.archive(id)
+    setProject((prev) => prev ? { ...prev, status: updated.status } : prev)
+    showToast('Projeto arquivado com sucesso!', 'success')
+  } catch {
+    showToast('Erro ao arquivar projeto', 'error')
+  }
+}
+const handleUnarchive = async () => {
+  try {
+    const updated = await projectService.unarchive(id)
+    setProject((prev) => prev ? { ...prev, status: updated.status } : prev)
+    showToast('Projeto reativado com sucesso!', 'success')
+  } catch {
+    showToast('Erro ao reativar projeto', 'error')
+  }
+}
 
   if (loading) {
     return (
@@ -107,19 +135,18 @@ const handleRemoveMember = async (email: string) => {
   const getTasksByStatus = (status: string) =>
     tasks.filter((task) => task.status === status)
 
-  const handleTaskCreated = (task: Task) => {
-  setTasks((prev) => [...prev, task])
-}
-
   return (
     <div>
-        {showTaskModal && (
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+
+      {showTaskModal && (
         <CreateTaskModal
-            projectId={id}
-            onClose={() => setShowTaskModal(false)}
-            onCreated={handleTaskCreated}
-    />
-        )}
+          projectId={id}
+          onClose={() => setShowTaskModal(false)}
+          onCreated={handleTaskCreated}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -143,24 +170,39 @@ const handleRemoveMember = async (email: string) => {
         </div>
         <div className="flex gap-3">
             <button
-                onClick={() => setShowMembersPanel(!showMembersPanel)}
-                className="border border-[#2a2a2a] text-[#888] hover:text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+              onClick={() => setShowMembersPanel(!showMembersPanel)}
+              className="border border-[#2a2a2a] text-[#888] hover:text-white text-sm font-medium px-4 py-2 rounded-lg transition"
             >
-                Membros
+              Membros
             </button>
+            {project.status === 'ACTIVE' ? (
+              <button
+                onClick={handleArchive}
+                className="border border-[#2a2a2a] text-[#888] hover:text-red-400 text-sm font-medium px-4 py-2 rounded-lg transition"
+              >
+                Arquivar
+              </button>
+            ) : (
+              <button
+                onClick={handleUnarchive}
+                className="border border-[#2a2a2a] text-[#888] hover:text-green-400 text-sm font-medium px-4 py-2 rounded-lg transition"
+              >
+                Reativar
+              </button>
+            )}
             <button
-                onClick={() => setShowTaskModal(true)}
-                className="bg-white text-black text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#e0e0e0] transition"
+              onClick={() => setShowTaskModal(true)}
+              className="bg-white text-black text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#e0e0e0] transition"
             >
-                Nova task
+              Nova task
             </button>
         </div>
       </div>
+
       {/* Members Panel */}
       {showMembersPanel && (
         <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-5 mb-6">
           <h2 className="text-white font-semibold mb-4">Membros</h2>
-
           <div className="space-y-3 mb-4">
             {project.members.map((member) => (
               <div key={member.email} className="flex items-center justify-between">
@@ -187,7 +229,6 @@ const handleRemoveMember = async (email: string) => {
               </div>
             ))}
           </div>
-
           <div className="flex gap-2">
             <input
               value={memberEmail}
@@ -204,14 +245,11 @@ const handleRemoveMember = async (email: string) => {
               {addingMember ? 'Adicionando...' : 'Adicionar'}
             </button>
           </div>
-
           {memberError && (
             <p className="text-red-400 text-xs mt-2">{memberError}</p>
           )}
         </div>
       )}
-
-      {/* Kanban */}
 
       {/* Kanban */}
       <div className="flex gap-4 overflow-x-auto pb-4">
@@ -225,7 +263,6 @@ const handleRemoveMember = async (email: string) => {
                   {columnTasks.length}
                 </span>
               </div>
-
               <div className="space-y-3">
                 {columnTasks.map((task) => (
                   <div
@@ -234,11 +271,9 @@ const handleRemoveMember = async (email: string) => {
                     className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 cursor-pointer hover:border-[#3a3a3a] transition"
                   >
                     <p className="text-white text-sm font-medium mb-2">{task.title}</p>
-
                     {task.description && (
                       <p className="text-[#666] text-xs mb-3 line-clamp-2">{task.description}</p>
                     )}
-
                     <div className="flex items-center justify-between">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PRIORITY_COLORS[task.priority]}`}>
                         {PRIORITY_LABELS[task.priority]}
@@ -247,7 +282,6 @@ const handleRemoveMember = async (email: string) => {
                         <span className="text-[#555] text-xs">{task.deadline}</span>
                       )}
                     </div>
-
                     {task.assigneeEmail && (
                       <div className="mt-3 flex items-center gap-2">
                         <div className="w-5 h-5 rounded-full bg-[#2a2a2a] flex items-center justify-center text-xs text-white">
@@ -258,7 +292,6 @@ const handleRemoveMember = async (email: string) => {
                     )}
                   </div>
                 ))}
-
                 {columnTasks.length === 0 && (
                   <div className="border border-dashed border-[#2a2a2a] rounded-xl p-4 flex items-center justify-center">
                     <p className="text-[#555] text-xs">Sem tasks</p>

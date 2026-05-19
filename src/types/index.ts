@@ -25,7 +25,7 @@ export interface Task{
     projectId: string
     title: string 
     description: string | null
-    status: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE' | 'CANCELED'
+    status: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE' | 'CANCELLED'
     priority: 'LOW' | 'MEDIUM' | 'HIGH'
     deadline: string | null
     assigneeEmail: string | null

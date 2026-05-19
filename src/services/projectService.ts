@@ -34,4 +34,8 @@ export const projectService = {
     removeMember: async (id: string, email: string) => {
         await api.delete(`/api/projects/${id}/members`,{ data: {email}})
     },
+    unarchive: async (id: string) => {
+        const response = await api.patch<Project>(`/api/projects/${id}/unarchive`)
+        return response.data
+    },
 }

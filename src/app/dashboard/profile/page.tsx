@@ -6,6 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuthStore } from '@/store/authStore'
 import { authService } from '@/services/authService'
+import Toast from '@/components/Toast'
+import { useToast } from '@/hooks/useToast'
 
 const profileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -26,14 +28,12 @@ type PasswordForm = z.infer<typeof passwordSchema>
 
 export default function ProfilePage() {
   const { user, setAuth } = useAuthStore()
-  const [profileSuccess, setProfileSuccess] = useState(false)
-  const [passwordSuccess, setPasswordSuccess] = useState(false)
+  const { toast, showToast, hideToast } = useToast()
 
   const {
     register: registerProfile,
     handleSubmit: handleProfileSubmit,
     formState: { errors: profileErrors, isSubmitting: isProfileSubmitting },
-    setError: setProfileError,
   } = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -57,29 +57,29 @@ export default function ProfilePage() {
       const updated = await authService.updateProfile(data.name, data.avatarUrl ?? '')
       const token = localStorage.getItem('token') ?? ''
       setAuth(updated, token)
-      setProfileSuccess(true)
-      setTimeout(() => setProfileSuccess(false), 3000)
+      showToast('Perfil atualizado com sucesso!', 'success')
     } catch {
-      setProfileError('root', { message: 'Failed to update profile' })
+      showToast('Erro ao atualizar perfil', 'error')
     }
   }
 
   const onPasswordSubmit = async (data: PasswordForm) => {
     try {
       await authService.changePassword(data.oldPassword, data.newPassword)
-      setPasswordSuccess(true)
       resetPassword()
-      setTimeout(() => setPasswordSuccess(false), 3000)
+      showToast('Senha alterada com sucesso!', 'success')
     } catch {
-      setPasswordError('root', { message: 'Old password is incorrect' })
+      setPasswordError('root', { message: 'Senha atual incorreta' })
+      showToast('Erro ao alterar senha', 'error')
     }
   }
 
   return (
     <div className="max-w-xl">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+
       <h1 className="text-2xl font-bold text-white mb-8">Perfil</h1>
 
-      {/* Profile info */}
       <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-6 mb-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-14 h-14 rounded-full bg-[#2a2a2a] flex items-center justify-center text-xl text-white font-bold">
@@ -119,14 +119,6 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {profileErrors.root && (
-            <p className="text-red-400 text-sm">{profileErrors.root.message}</p>
-          )}
-
-          {profileSuccess && (
-            <p className="text-green-400 text-sm">Perfil atualizado com sucesso!</p>
-          )}
-
           <button
             type="submit"
             disabled={isProfileSubmitting}
@@ -137,7 +129,6 @@ export default function ProfilePage() {
         </form>
       </div>
 
-      {/* Change password */}
       <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-6">
         <h2 className="text-white font-semibold mb-4">Alterar senha</h2>
 
@@ -183,10 +174,6 @@ export default function ProfilePage() {
 
           {passwordErrors.root && (
             <p className="text-red-400 text-sm">{passwordErrors.root.message}</p>
-          )}
-
-          {passwordSuccess && (
-            <p className="text-green-400 text-sm">Senha alterada com sucesso!</p>
           )}
 
           <button
